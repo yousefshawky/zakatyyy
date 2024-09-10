@@ -1,7 +1,5 @@
 Flask
-requests
+gunicorn
 hijri-converter
+requests
 python-dotenv
-pandas
-beautifulsoup4
-selenium
