@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zakat Reminder Service</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Zakat Reminder Service</h1>
+        </header>
+
+        <section class="content">
+            {% if nisaab_value %}
+                <p class="nisaab-info">
+                    Zakat is an obligation upon every Muslim whose total asset value has reached the Nisaab (threshold),
+                    which is currently
+                    <a href="https://www.goldapi.io/" class="nisaab-link" target="_blank">
+                        <strong>{{ nisaab_value }} USD</strong>
+                    </a>
+                    based on the price of 85 grams of gold today. It must be paid every Hijri year on the date when the Nisaab was first reached.
+                </p>
+            {% else %}
+                <p class="nisaab-info">Unable to fetch the current Nisaab value. Please check back later.</p>
+            {% endif %}
+
+            <div class="date-input-section">
+                <p>
+                    To find out when you need to pay Zakat for the next 10 years, please enter the Gregorian date
+                    on which you first reached the Nisaab:
+                </p>
+
+                <form method="POST">
+                    <label for="threshold_date">Enter the date you reached the Nisaab (Gregorian):</label>
+                    <input type="date" id="threshold_date" name="threshold_date" required>
+                    <button type="submit">Calculate Payment Dates</button>
+                </form>
+            </div>
+
+            {% if dates %}
+                <div class="payment-dates">
+                    <h2>Your Zakat Payment Dates for the Next 10 Years</h2>
+                    <ul>
+                        {% for date in dates %}
+                            <li>{{ date.strftime('%Y-%m-%d') }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="video-section">
+            <h2>For a more in-depth explanation of Zakat and how it should be paid, watch this:</h2>
+            <iframe width="560" height="315" src="https://www.youtube.com/embed/HCX2CJ9U1m0" frameborder="0" allowfullscreen></iframe>
+        </section>
+    </div>
+</body>
+</html>

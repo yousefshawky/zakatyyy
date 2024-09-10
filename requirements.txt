@@ -1,0 +1,7 @@
+Flask
+requests
+hijri-converter
+python-dotenv
+pandas
+beautifulsoup4
+selenium
