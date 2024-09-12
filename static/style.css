@@ -1,8 +1,8 @@
 body {
-    font-family: 'Trebuchet MS', sans-serif;
+    font-family: 'Arial', sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f0f8ff; /* Lighter shade of blue */
+    background-color: #eff0f5; /* Updated background color */
     color: #333;
 }
 
@@ -10,7 +10,7 @@ body {
     width: 80%;
     max-width: 800px;
     margin: 30px auto;
-    padding: 30px; /* Increased padding for better spacing */
+    padding: 20px;
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -19,7 +19,7 @@ body {
 header {
     text-align: center;
     padding-bottom: 20px;
-    border-bottom: 2px solid #d1e7ff; /* Lighter blue for the border */
+    border-bottom: 2px solid #e0e7ff;
 }
 
 h1 {
@@ -34,13 +34,14 @@ h1 {
 .nisaab-info {
     font-size: 1.1em;
     color: #2a4365;
-    line-height: 1.8; /* Increased line height for readability */
+    line-height: 1.6;
 }
 
 .nisaab-link {
     color: #1d72b8;
     text-decoration: none;
     font-weight: bold;
+    margin-left: 5px;
 }
 
 .nisaab-link:hover {
@@ -67,7 +68,7 @@ input[type="date"], button {
 }
 
 button {
-    background-color: #1d72b8;
+    background-color: #06253A; /* Updated button color */
     color: white;
     border: none;
     cursor: pointer;
@@ -76,7 +77,7 @@ button {
 }
 
 button:hover {
-    background-color: #155a8a;
+    background-color: #155a8a; /* Keep the hover color consistent or change as needed */
 }
 
 .payment-dates {
@@ -96,7 +97,7 @@ ul {
 }
 
 ul li {
-    background-color: #d1e7ff; /* Lighter blue background for list items */
+    background-color: #e0e7ff;
     padding: 8px;
     margin-bottom: 5px;
     border-radius: 4px;
