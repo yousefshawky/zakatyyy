@@ -5,6 +5,7 @@ from flask import Flask, render_template, request
 from datetime import datetime, timedelta
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -75,6 +76,44 @@ def get_gold_price_usd():
     return gold_price
 
 
+def add_subscriber_to_mailchimp(email, zakat_dates):
+    """Add or update subscriber in Mailchimp list with Zakat dates."""
+    subscriber_hash = hashlib.md5(email.lower().encode()).hexdigest()
+    server_prefix = os.getenv('MAILCHIMP_SERVER_PREFIX')  # e.g., 'us1'
+    list_id = os.getenv('MAILCHIMP_LIST_ID')
+    url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
+
+    # Prepare data for Mailchimp API
+    data = {
+        "email_address": email,
+        "status_if_new": "subscribed",
+        "status": "subscribed",
+        "merge_fields": {
+            "ZAKAT_DATE_1": zakat_dates[0],
+            "ZAKAT_DATE_2": zakat_dates[1],
+            "ZAKAT_DATE_3": zakat_dates[2],
+            "ZAKAT_DATE_4": zakat_dates[3],
+            "ZAKAT_DATE_5": zakat_dates[4],
+            "ZAKAT_DATE_6": zakat_dates[5],
+            "ZAKAT_DATE_7": zakat_dates[6],
+            "ZAKAT_DATE_8": zakat_dates[7],
+            "ZAKAT_DATE_9": zakat_dates[8],
+            "ZAKAT_DATE_10": zakat_dates[9],
+
+        },
+        "tags": ["Pending Payment"]
+    }
+
+    headers = {"Authorization": f"apikey {os.getenv('MAILCHIMP_API_KEY')}"}
+
+    response = requests.put(url, json=data, headers=headers)
+
+    if response.status_code in [200, 204]:
+        print("Subscriber added or updated successfully.")
+    else:
+        print(f"Failed to add or update subscriber: {response.text}")
+
+
 # Functions to convert dates
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
@@ -92,6 +131,7 @@ def index():
     next_dates = None
 
     if request.method == 'POST':
+        email = request.form['email']  # Make sure the form collects the user's email
         threshold_date_str = request.form['threshold_date']
         threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
 
@@ -103,7 +143,13 @@ def index():
         for i in range(10):
             next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
             next_gregorian_date = next_hijri_date.to_gregorian()
-            next_dates.append(next_gregorian_date)
+
+            # Format the date to dd/mm/yyyy
+            formatted_date = next_gregorian_date.strftime('%d/%m/%Y')
+            next_dates.append(formatted_date)
+
+        # Add or update subscriber in Mailchimp
+        add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
 
