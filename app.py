@@ -91,23 +91,29 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
+    # Correct payload structure
+    merge_fields = {
+        "MMERGE5": zakat_dates[0],
+        "MMERGE6": zakat_dates[1],
+        "MMERGE7": zakat_dates[2],
+        "MMERGE8": zakat_dates[3],
+        "MMERGE9": zakat_dates[4],
+        "MMERGE10": zakat_dates[5],
+        "MMERGE11": zakat_dates[6],
+        "MMERGE12": zakat_dates[7],
+        "MMERGE13": zakat_dates[8],
+        "MMERGE14": zakat_dates[9],
+    }
+
+    # Remove any merge fields that are None or empty to avoid errors
+    merge_fields = {k: v for k, v in merge_fields.items() if v}
+
     # Prepare data for Mailchimp API
     data = {
         "email_address": email,
         "status_if_new": "subscribed",
         "status": "subscribed",
-        "merge_fields": {
-            "MMERGE5": zakat_dates[0],
-            "MMERGE6": zakat_dates[1],
-            "MMERGE7": zakat_dates[2],
-            "MMERGE8": zakat_dates[3],
-            "MMERGE9": zakat_dates[4],
-            "MMERGE10": zakat_dates[5],
-            "MMERGE11": zakat_dates[6],
-            "MMERGE12": zakat_dates[7],
-            "MMERGE13": zakat_dates[8],
-            "MMERGE14": zakat_dates[9],
-        },
+        "merge_fields": merge_fields,  # Include only the valid merge fields
         "tags": ["Pending Payment"]
     }
 
