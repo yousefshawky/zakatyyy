@@ -119,6 +119,13 @@ def convert_hijri_to_gregorian(h_date):
     """Convert Hijri date to Gregorian date."""
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
 
+@app.route('/oauth/callback')
+def oauth_callback():
+    # Handle the response from Mailchimp
+    # Process the authorization code and exchange it for an access token
+    return "OAuth callback received!"
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
