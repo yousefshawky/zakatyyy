@@ -14,6 +14,9 @@ app = Flask(__name__)
 
 CACHE_FILE = 'gold_price_cache.json'
 
+MAILCHIMP_CLIENT_ID = os.getenv('MAILCHIMP_CLIENT_ID')
+MAILCHIMP_CLIENT_SECRET = os.getenv('MAILCHIMP_CLIENT_SECRET')
+
 
 def get_cached_gold_price():
     """Read the cached gold price from a file."""
@@ -156,6 +159,34 @@ def index():
         add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
+
+
+@app.route('/oauth/callback')
+def oauth_callback():
+    """Handle the OAuth callback from Mailchimp."""
+    auth_code = request.args.get('code')
+    token_url = 'https://login.mailchimp.com/oauth2/token'
+    redirect_uri = 'https://zakat-reminder.fly.dev/oauth/callback'
+
+    data = {
+        'grant_type': 'authorization_code',
+        'client_id': MAILCHIMP_CLIENT_ID,
+        'client_secret': MAILCHIMP_CLIENT_SECRET,
+        'redirect_uri': redirect_uri,
+        'code': auth_code
+    }
+
+    # Make the request to get the access token
+    response = requests.post(token_url, data=data)
+
+    # Check for a successful response
+    if response.status_code == 200:
+        token_info = response.json()
+        access_token = token_info.get('access_token')
+        print('Access Token:', access_token)
+        return "Successfully authenticated with Mailchimp!"
+    else:
+        return f"Failed to authenticate: {response.text}"
 
 
 if __name__ == '__main__':
