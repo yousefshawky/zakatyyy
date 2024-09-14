@@ -2,18 +2,20 @@ import os
 import requests
 import json
 from flask import Flask, render_template, request
-from datetime import datetime, timedelta
+from datetime import datetime
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
 import hashlib
+from flask_cors import CORS  # Import CORS for handling cross-origin requests
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+app.config['SECRET_KEY'] = 'your_secret_key_here'  # Replace with a secure random string
 
 CACHE_FILE = 'gold_price_cache.json'
-
 
 def get_cached_gold_price():
     """Read the cached gold price from a file."""
@@ -27,7 +29,6 @@ def get_cached_gold_price():
                 return cache_data['gold_price']
     return None
 
-
 def cache_gold_price(price):
     """Save the gold price to a cache file with a timestamp."""
     with open(CACHE_FILE, 'w') as f:
@@ -36,7 +37,6 @@ def cache_gold_price(price):
             'gold_price': price
         }
         json.dump(cache_data, f)
-
 
 def fetch_gold_price_from_api():
     """Fetch the gold price from GoldAPI.io."""
@@ -61,7 +61,6 @@ def fetch_gold_price_from_api():
         print(f"An error occurred while fetching the gold price: {e}")
         return None
 
-
 def get_gold_price_usd():
     """Get the gold price from the cache or fetch from the API if needed."""
     cached_price = get_cached_gold_price()
@@ -74,7 +73,6 @@ def get_gold_price_usd():
     if gold_price is not None:
         cache_gold_price(gold_price)
     return gold_price
-
 
 def add_subscriber_to_mailchimp(email, zakat_dates):
     """Add or update subscriber in Mailchimp list with Zakat dates."""
@@ -99,7 +97,6 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
             "ZAKAT_DATE_8": zakat_dates[7],
             "ZAKAT_DATE_9": zakat_dates[8],
             "ZAKAT_DATE_10": zakat_dates[9],
-
         },
         "tags": ["Pending Payment"]
     }
@@ -113,17 +110,14 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
     else:
         print(f"Failed to add or update subscriber: {response.text}")
 
-
 # Functions to convert dates
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
     return Gregorian.fromdate(g_date).to_hijri()
 
-
 def convert_hijri_to_gregorian(h_date):
     """Convert Hijri date to Gregorian date."""
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -131,9 +125,19 @@ def index():
     next_dates = None
 
     if request.method == 'POST':
-        email = request.form['email']  # Make sure the form collects the user's email
-        threshold_date_str = request.form['threshold_date']
-        threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+        print(request.form)  # Debugging: Print the form data to the console
+        email = request.form.get('email')  # Use .get() to avoid KeyError
+        threshold_date_str = request.form.get('threshold_date')
+
+        if not email or not threshold_date_str:
+            print("Missing form data.")
+            return "Missing required fields. Please fill out the form completely.", 400
+
+        try:
+            threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+        except ValueError as e:
+            print(f"Error parsing date: {e}")
+            return "Invalid date format. Please use YYYY-MM-DD.", 400
 
         # Convert to Hijri
         hijri_date = convert_gregorian_to_hijri(threshold_date)
@@ -152,7 +156,6 @@ def index():
         add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
-
 
 if __name__ == '__main__':
     app.run(debug=True)

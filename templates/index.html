@@ -33,6 +33,9 @@
                 </p>
 
                 <form method="POST">
+                    <label for="email">Enter your email:</label>
+                    <input type="email" id="email" name="email" required>
+
                     <label for="threshold_date">Enter the date you reached the Nisaab (Gregorian):</label>
                     <input type="date" id="threshold_date" name="threshold_date" required>
                     <button type="submit">Calculate Payment Dates</button>
@@ -44,7 +47,7 @@
                     <h2>Your Zakat Payment Dates for the Next 10 Years</h2>
                     <ul>
                         {% for date in dates %}
-                            <li>{{ date.strftime('%Y-%m-%d') }}</li>
+                            <li>{{ date }}</li>
                         {% endfor %}
                     </ul>
                 </div>

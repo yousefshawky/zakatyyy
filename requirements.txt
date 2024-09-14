@@ -3,3 +3,4 @@ gunicorn
 hijri-converter
 requests
 python-dotenv
+Flask-CORS
