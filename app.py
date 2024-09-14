@@ -86,22 +86,22 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
-    # Prepare data for Mailchimp API
+    # Correctly align merge fields with Mailchimp configuration
     data = {
         "email_address": email,
         "status_if_new": "subscribed",
         "status": "subscribed",
         "merge_fields": {
-            "ZAKAT_DATE_1": zakat_dates[0],
-            "ZAKAT_DATE_2": zakat_dates[1],
-            "ZAKAT_DATE_3": zakat_dates[2],
-            "ZAKAT_DATE_4": zakat_dates[3],
-            "ZAKAT_DATE_5": zakat_dates[4],
-            "ZAKAT_DATE_6": zakat_dates[5],
-            "ZAKAT_DATE_7": zakat_dates[6],
-            "ZAKAT_DATE_8": zakat_dates[7],
-            "ZAKAT_DATE_9": zakat_dates[8],
-            "ZAKAT_DATE_10": zakat_dates[9],
+            "MMERGE5": zakat_dates[0],
+            "MMERGE6": zakat_dates[1],
+            "MMERGE7": zakat_dates[2],
+            "MMERGE8": zakat_dates[3],
+            "MMERGE9": zakat_dates[4],
+            "MMERGE10": zakat_dates[5],
+            "MMERGE11": zakat_dates[6],
+            "MMERGE12": zakat_dates[7],
+            "MMERGE13": zakat_dates[8],
+            "MMERGE14": zakat_dates[9],
         },
         "tags": ["Pending Payment"]
     }
@@ -110,8 +110,8 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
 
     response = requests.put(url, json=data, headers=headers)
 
-    print(f"Request URL: {url}")  # Debugging line
-    print(f"Request Data: {json.dumps(data)}")  # Debugging line
+    print(f"Request URL: {url}")
+    print(f"Request Data: {json.dumps(data)}")
 
     if response.status_code in [200, 204]:
         print("Subscriber added or updated successfully.")
@@ -119,7 +119,6 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
         print(f"Failed to add or update subscriber: {response.text}")
         print(f"Response Status Code: {response.status_code}")
         print(f"Response Body: {response.text}")
-
 
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
