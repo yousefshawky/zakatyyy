@@ -5,4 +5,4 @@ requests
 python-dotenv
 Flask-CORS
 aiohttp
-async
+Flask[async]
