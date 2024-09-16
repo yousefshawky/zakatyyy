@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
 import hashlib
+import asyncio
+import aiohttp
 
 # Load environment variables
 load_dotenv()
@@ -16,7 +18,6 @@ CACHE_FILE = 'gold_price_cache.json'
 
 MAILCHIMP_CLIENT_ID = os.getenv('MAILCHIMP_CLIENT_ID')
 MAILCHIMP_CLIENT_SECRET = os.getenv('MAILCHIMP_CLIENT_SECRET')
-
 
 def get_cached_gold_price():
     """Read the cached gold price from a file."""
@@ -30,7 +31,6 @@ def get_cached_gold_price():
                 return cache_data['gold_price']
     return None
 
-
 def cache_gold_price(price):
     """Save the gold price to a cache file with a timestamp."""
     with open(CACHE_FILE, 'w') as f:
@@ -40,35 +40,10 @@ def cache_gold_price(price):
         }
         json.dump(cache_data, f)
 
-
 def fetch_gold_price_from_api():
     """Fetch the gold price from GoldAPI.io."""
-    # Disable API calls by returning a fixed value
     print("Gold API calls are currently disabled for testing.")
     return 6863.98  # Example static value for testing
-
-    # Uncomment the lines below to re-enable API calls
-    # api_key = os.getenv('GOLD_API_KEY')
-    # url = "https://www.goldapi.io/api/XAU/USD"
-
-    # try:
-    #     print(f"Fetching gold price from GoldAPI.io...")  # Debugging line
-    #     headers = {'x-access-token': api_key, 'Content-Type': 'application/json'}
-    #     response = requests.get(url, headers=headers)
-    #     response.raise_for_status()  # Raise an exception for HTTP errors
-
-    #     data = response.json()
-
-    #     # Extract the gold price from the response
-    #     gold_price_per_ounce_usd = data['price']
-    #     gold_price_per_gram_usd = gold_price_per_ounce_usd / 31.1035  # 1 ounce = 31.1035 grams
-    #     nisaab_value = 85 * gold_price_per_gram_usd
-    #     return round(nisaab_value, 2)  # Round to 2 decimal places
-
-    # except Exception as e:
-    #     print(f"An error occurred while fetching the gold price: {e}")
-    #     return None
-
 
 def get_gold_price_usd():
     """Get the gold price from the cache or use a static value for testing."""
@@ -77,76 +52,63 @@ def get_gold_price_usd():
         print("Using cached gold price.")
         return cached_price
 
-    # Use a fixed value to avoid wasting API quota during testing
     gold_price = fetch_gold_price_from_api()
     if gold_price is not None:
         cache_gold_price(gold_price)
     return gold_price
 
-
-def add_subscriber_to_mailchimp(email, zakat_dates):
+async def add_subscriber_to_mailchimp(email, zakat_dates):
     """Add or update subscriber in Mailchimp list with Zakat dates."""
     subscriber_hash = hashlib.md5(email.lower().encode()).hexdigest()
     server_prefix = os.getenv('MAILCHIMP_SERVER_PREFIX')  # e.g., 'us1'
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
-    # Ensure all dates are properly formatted
     merge_fields = {
-        "MMERGE5": zakat_dates[0] if zakat_dates[0] else '',
-        "MMERGE6": zakat_dates[1] if zakat_dates[1] else '',
-        "MMERGE7": zakat_dates[2] if zakat_dates[2] else '',
-        "MMERGE8": zakat_dates[3] if zakat_dates[3] else '',
-        "MMERGE9": zakat_dates[4] if zakat_dates[4] else '',
-        "MMERGE10": zakat_dates[5] if zakat_dates[5] else '',
-        "MMERGE11": zakat_dates[6] if zakat_dates[6] else '',
-        "MMERGE12": zakat_dates[7] if zakat_dates[7] else '',
-        "MMERGE13": zakat_dates[8] if zakat_dates[8] else '',
-        "MMERGE14": zakat_dates[9] if zakat_dates[9] else '',
+        "MMERGE5": zakat_dates[0] if len(zakat_dates) > 0 else '',
+        "MMERGE6": zakat_dates[1] if len(zakat_dates) > 1 else '',
+        "MMERGE7": zakat_dates[2] if len(zakat_dates) > 2 else '',
+        "MMERGE8": zakat_dates[3] if len(zakat_dates) > 3 else '',
+        "MMERGE9": zakat_dates[4] if len(zakat_dates) > 4 else '',
+        "MMERGE10": zakat_dates[5] if len(zakat_dates) > 5 else '',
+        "MMERGE11": zakat_dates[6] if len(zakat_dates) > 6 else '',
+        "MMERGE12": zakat_dates[7] if len(zakat_dates) > 7 else '',
+        "MMERGE13": zakat_dates[8] if len(zakat_dates) > 8 else '',
+        "MMERGE14": zakat_dates[9] if len(zakat_dates) > 9 else '',
     }
-
-    # Debugging: Print merge fields
-    print(f"Merge fields being sent to Mailchimp: {merge_fields}")
 
     # Prepare data for Mailchimp API
     data = {
         "email_address": email,
         "status_if_new": "subscribed",
         "status": "subscribed",
-        "merge_fields": merge_fields,  # Include only the valid merge fields
+        "merge_fields": merge_fields,
         "tags": ["Pending Payment"]
     }
 
     headers = {"Authorization": f"apikey {os.getenv('MAILCHIMP_API_KEY')}"}
 
-    # Debugging: Print the data payload
-    print(f"Sending data to Mailchimp: {data}")
+    async with aiohttp.ClientSession() as session:
+        async with session.put(url, json=data, headers=headers) as response:
+            response_text = await response.text()
+            print(f"Response Status Code: {response.status}")
+            print(f"Response Body: {response_text}")
 
-    response = requests.put(url, json=data, headers=headers)
+            if response.status in [200, 204]:
+                print("Subscriber added or updated successfully.")
+            else:
+                print(f"Failed to add or update subscriber: {response_text}")
 
-    # Debugging: Print response from Mailchimp
-    print(f"Response Status Code: {response.status_code}")
-    print(f"Response Body: {response.text}")
-
-    if response.status_code in [200, 204]:
-        print("Subscriber added or updated successfully.")
-    else:
-        print(f"Failed to add or update subscriber: {response.text}")
-
-
-# Functions to convert dates
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
     return Gregorian.fromdate(g_date).to_hijri()
-
 
 def convert_hijri_to_gregorian(h_date):
     """Convert Hijri date to Gregorian date."""
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
 
-
 @app.route('/', methods=['GET', 'POST'])
-def index():
+async def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
     next_dates = None
 
@@ -169,10 +131,9 @@ def index():
             next_dates.append(formatted_date)
 
         # Add or update subscriber in Mailchimp
-        add_subscriber_to_mailchimp(email, next_dates)
+        await add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
-
 
 @app.route('/oauth/callback')
 def oauth_callback():
@@ -200,7 +161,6 @@ def oauth_callback():
         return "Successfully authenticated with Mailchimp!"
     else:
         return f"Failed to authenticate: {response.text}"
-
 
 if __name__ == '__main__':
     app.run(debug=True)
