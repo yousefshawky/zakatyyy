@@ -91,22 +91,22 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
-    # Correct payload structure
+    # Ensure all dates are properly formatted
     merge_fields = {
-        "MMERGE5": zakat_dates[0],
-        "MMERGE6": zakat_dates[1],
-        "MMERGE7": zakat_dates[2],
-        "MMERGE8": zakat_dates[3],
-        "MMERGE9": zakat_dates[4],
-        "MMERGE10": zakat_dates[5],
-        "MMERGE11": zakat_dates[6],
-        "MMERGE12": zakat_dates[7],
-        "MMERGE13": zakat_dates[8],
-        "MMERGE14": zakat_dates[9],
+        "MMERGE5": zakat_dates[0] if zakat_dates[0] else '',
+        "MMERGE6": zakat_dates[1] if zakat_dates[1] else '',
+        "MMERGE7": zakat_dates[2] if zakat_dates[2] else '',
+        "MMERGE8": zakat_dates[3] if zakat_dates[3] else '',
+        "MMERGE9": zakat_dates[4] if zakat_dates[4] else '',
+        "MMERGE10": zakat_dates[5] if zakat_dates[5] else '',
+        "MMERGE11": zakat_dates[6] if zakat_dates[6] else '',
+        "MMERGE12": zakat_dates[7] if zakat_dates[7] else '',
+        "MMERGE13": zakat_dates[8] if zakat_dates[8] else '',
+        "MMERGE14": zakat_dates[9] if zakat_dates[9] else '',
     }
 
-    # Remove any merge fields that are None or empty to avoid errors
-    merge_fields = {k: v for k, v in merge_fields.items() if v}
+    # Debugging: Print merge fields
+    print(f"Merge fields being sent to Mailchimp: {merge_fields}")
 
     # Prepare data for Mailchimp API
     data = {
@@ -119,7 +119,14 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
 
     headers = {"Authorization": f"apikey {os.getenv('MAILCHIMP_API_KEY')}"}
 
+    # Debugging: Print the data payload
+    print(f"Sending data to Mailchimp: {data}")
+
     response = requests.put(url, json=data, headers=headers)
+
+    # Debugging: Print response from Mailchimp
+    print(f"Response Status Code: {response.status_code}")
+    print(f"Response Body: {response.text}")
 
     if response.status_code in [200, 204]:
         print("Subscriber added or updated successfully.")
