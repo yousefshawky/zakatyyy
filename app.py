@@ -1,14 +1,13 @@
 import os
 import json
 import logging
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from datetime import datetime
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
 import hashlib
 import aiohttp
 import asyncio
-import requests
 import time
 
 # Load environment variables
@@ -17,7 +16,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration for local testing
-IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'False'  # Set to 'False' when deploying to Fly.io
+IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'True'  # Set to 'False' when deploying to Fly.io
 
 CACHE_FILE = 'gold_price_cache.json'
 
@@ -80,6 +79,7 @@ def format_date_for_mailchimp(date_str):
     except ValueError:
         logger.error(f"Invalid date format: {date_str}")
         return ''
+
 async def add_subscriber_to_mailchimp(email, zakat_dates):
     """Add or update subscriber in Mailchimp list with Zakat dates asynchronously."""
     start_time = time.time()  # Start timing
@@ -132,7 +132,6 @@ async def add_subscriber_to_mailchimp(email, zakat_dates):
             else:
                 logger.error(f"Failed to add or update subscriber: {response_text}")
 
-
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
     return Gregorian.fromdate(g_date).to_hijri()
@@ -146,8 +145,8 @@ async def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
     next_dates = None
 
-    if request.method == 'POST':
-        email = request.form['email']  # Ensure the form collects the user's email
+    if request.method == 'POST' and 'calculate_dates' in request.form:
+        # Step 1: Calculate Zakat dates
         threshold_date_str = request.form['threshold_date']
         threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
 
@@ -159,15 +158,33 @@ async def index():
         for i in range(10):
             next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
             next_gregorian_date = next_hijri_date.to_gregorian()
-
-            # Format the date to dd/mm/yyyy
-            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')  # Original format
+            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
             next_dates.append(formatted_date)
 
         logger.info(f"Calculated Zakat payment dates: {next_dates}")
 
-        # Add or update subscriber in Mailchimp
-        await add_subscriber_to_mailchimp(email, next_dates)
+    elif request.method == 'POST' and 'send_reminders' in request.form:
+        # Step 3: Collect email and recalculate dates, then send to Mailchimp
+        email = request.form['email']
+        threshold_date_str = request.form['threshold_date']
+        threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+
+        # Convert to Hijri
+        hijri_date = convert_gregorian_to_hijri(threshold_date)
+        next_dates = []
+
+        # Calculate next 10 years' payment dates in Hijri
+        for i in range(10):
+            next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
+            next_gregorian_date = next_hijri_date.to_gregorian()
+            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
+            next_dates.append(formatted_date)
+
+        logger.info(f"Calculated Zakat payment dates for Mailchimp: {next_dates}")
+
+        # Send to Mailchimp
+        if email:
+            await add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
 

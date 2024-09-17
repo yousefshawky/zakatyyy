@@ -33,11 +33,9 @@
                 </p>
 
                 <form method="POST">
-                    <label for="email">Enter your email:</label>
-                    <input type="email" id="email" name="email" required>
-
-                    <label for="threshold_date">Enter the date you reached the Nisaab (Gregorian):</label>
-                    <input type="date" id="threshold_date" name="threshold_date" required>
+                    <input type="hidden" name="calculate_dates" value="true">
+                    <label for="initial_threshold_date">Enter the date you reached the Nisaab (Gregorian):</label>
+                    <input type="date" id="initial_threshold_date" name="threshold_date" required>
                     <button type="submit">Calculate Payment Dates</button>
                 </form>
             </div>
@@ -52,10 +50,20 @@
                     </ul>
                 </div>
 
-                <!-- Reminder Message and Sign-Up Button -->
+                <!-- Reminder Message and Email Input -->
                 <div class="reminder-section">
                     <p>Missing your Zakat dates could be a major sin! Want email reminders?</p>
-                    <button onclick="window.location.href='https://565823-de.myshopify.com/products/zakat-email-reminder'" class="sign-up-button">Sign Up</button>
+                    <form method="POST" id="reminderForm" action="https://565823-de.myshopify.com/products/zakat-email-reminder" onsubmit="redirectToShopify(event)">
+                        <input type="hidden" name="send_reminders" value="true">
+                        <label for="email">Enter your email:</label>
+                        <input type="email" id="email" name="email" required>
+
+                        <label for="reenter_threshold_date">Re-enter the date you reached the Nisaab (Gregorian):</label>
+                        <input type="date" id="reenter_threshold_date" name="threshold_date" required>
+
+                        <!-- Single Button to Trigger Recalculation and Redirect -->
+                        <button type="submit" class="sign-up-button">Complete Your Sign-Up</button>
+                    </form>
                 </div>
             {% endif %}
         </section>
@@ -65,5 +73,30 @@
             <iframe width="560" height="315" src="https://www.youtube.com/embed/HCX2CJ9U1m0" frameborder="0" allowfullscreen></iframe>
         </section>
     </div>
+
+    <!-- JavaScript to Handle Form Submission and Redirection -->
+    <script>
+        function redirectToShopify(event) {
+            event.preventDefault();  // Prevent the default form submission behavior
+
+            // Perform form submission via AJAX
+            var form = document.getElementById('reminderForm');
+            var formData = new FormData(form);
+
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            }).then(function(response) {
+                if (response.ok) {
+                    // Redirect to Shopify payment page after successful submission
+                    window.location.href = 'https://565823-de.myshopify.com/products/zakat-email-reminder';
+                } else {
+                    console.error('Error occurred:', response.statusText);
+                }
+            }).catch(function(error) {
+                console.error('Error occurred:', error);
+            });
+        }
+    </script>
 </body>
 </html>
