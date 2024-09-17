@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
 import hashlib
-import asyncio
-import aiohttp
 
 # Load environment variables
 load_dotenv()
@@ -57,24 +55,39 @@ def get_gold_price_usd():
         cache_gold_price(gold_price)
     return gold_price
 
-async def add_subscriber_to_mailchimp(email, zakat_dates):
+def format_date_for_mailchimp(date_str):
+    """Convert date from YYYY-MM-DD to the format expected by Mailchimp."""
+    if not date_str:
+        return ''
+    try:
+        # Parse the date from the YYYY-MM-DD format
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        # Convert to DD/MM/YYYY format (change to MM/DD/YYYY if needed)
+        formatted_date = date_obj.strftime('%d/%m/%Y')
+        return formatted_date
+    except ValueError:
+        print(f"Invalid date format: {date_str}")
+        return ''
+
+def add_subscriber_to_mailchimp(email, zakat_dates):
     """Add or update subscriber in Mailchimp list with Zakat dates."""
     subscriber_hash = hashlib.md5(email.lower().encode()).hexdigest()
     server_prefix = os.getenv('MAILCHIMP_SERVER_PREFIX')  # e.g., 'us1'
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
+    # Format dates correctly for Mailchimp
     merge_fields = {
-        "MMERGE5": zakat_dates[0] if len(zakat_dates) > 0 else '',
-        "MMERGE6": zakat_dates[1] if len(zakat_dates) > 1 else '',
-        "MMERGE7": zakat_dates[2] if len(zakat_dates) > 2 else '',
-        "MMERGE8": zakat_dates[3] if len(zakat_dates) > 3 else '',
-        "MMERGE9": zakat_dates[4] if len(zakat_dates) > 4 else '',
-        "MMERGE10": zakat_dates[5] if len(zakat_dates) > 5 else '',
-        "MMERGE11": zakat_dates[6] if len(zakat_dates) > 6 else '',
-        "MMERGE12": zakat_dates[7] if len(zakat_dates) > 7 else '',
-        "MMERGE13": zakat_dates[8] if len(zakat_dates) > 8 else '',
-        "MMERGE14": zakat_dates[9] if len(zakat_dates) > 9 else '',
+        "MMERGE5": format_date_for_mailchimp(zakat_dates[0]) if len(zakat_dates) > 0 else '',
+        "MMERGE6": format_date_for_mailchimp(zakat_dates[1]) if len(zakat_dates) > 1 else '',
+        "MMERGE7": format_date_for_mailchimp(zakat_dates[2]) if len(zakat_dates) > 2 else '',
+        "MMERGE8": format_date_for_mailchimp(zakat_dates[3]) if len(zakat_dates) > 3 else '',
+        "MMERGE9": format_date_for_mailchimp(zakat_dates[4]) if len(zakat_dates) > 4 else '',
+        "MMERGE10": format_date_for_mailchimp(zakat_dates[5]) if len(zakat_dates) > 5 else '',
+        "MMERGE11": format_date_for_mailchimp(zakat_dates[6]) if len(zakat_dates) > 6 else '',
+        "MMERGE12": format_date_for_mailchimp(zakat_dates[7]) if len(zakat_dates) > 7 else '',
+        "MMERGE13": format_date_for_mailchimp(zakat_dates[8]) if len(zakat_dates) > 8 else '',
+        "MMERGE14": format_date_for_mailchimp(zakat_dates[9]) if len(zakat_dates) > 9 else '',
     }
 
     # Prepare data for Mailchimp API
@@ -88,16 +101,17 @@ async def add_subscriber_to_mailchimp(email, zakat_dates):
 
     headers = {"Authorization": f"apikey {os.getenv('MAILCHIMP_API_KEY')}"}
 
-    async with aiohttp.ClientSession() as session:
-        async with session.put(url, json=data, headers=headers) as response:
-            response_text = await response.text()
-            print(f"Response Status Code: {response.status}")
-            print(f"Response Body: {response_text}")
+    # Send request to Mailchimp API
+    response = requests.put(url, json=data, headers=headers)
 
-            if response.status in [200, 204]:
-                print("Subscriber added or updated successfully.")
-            else:
-                print(f"Failed to add or update subscriber: {response_text}")
+    # Debugging: Print response from Mailchimp
+    print(f"Response Status Code: {response.status_code}")
+    print(f"Response Body: {response.text}")
+
+    if response.status_code in [200, 204]:
+        print("Subscriber added or updated successfully.")
+    else:
+        print(f"Failed to add or update subscriber: {response.text}")
 
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
@@ -108,7 +122,7 @@ def convert_hijri_to_gregorian(h_date):
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
 
 @app.route('/', methods=['GET', 'POST'])
-async def index():
+def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
     next_dates = None
 
@@ -127,11 +141,11 @@ async def index():
             next_gregorian_date = next_hijri_date.to_gregorian()
 
             # Format the date to dd/mm/yyyy
-            formatted_date = next_gregorian_date.strftime('%d/%m/%Y')
+            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')  # Original format
             next_dates.append(formatted_date)
 
         # Add or update subscriber in Mailchimp
-        await add_subscriber_to_mailchimp(email, next_dates)
+        add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
 
