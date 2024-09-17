@@ -1,21 +1,32 @@
 import os
-import requests
 import json
+import logging
 from flask import Flask, render_template, request
-from datetime import datetime, timedelta
+from datetime import datetime
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
 import hashlib
+import aiohttp
+import asyncio
+import requests
+import time
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
+# Configuration for local testing
+IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'False'  # Set to 'False' when deploying to Fly.io
+
 CACHE_FILE = 'gold_price_cache.json'
 
 MAILCHIMP_CLIENT_ID = os.getenv('MAILCHIMP_CLIENT_ID')
 MAILCHIMP_CLIENT_SECRET = os.getenv('MAILCHIMP_CLIENT_SECRET')
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG if IS_LOCAL else logging.INFO)
+logger = logging.getLogger(__name__)
 
 def get_cached_gold_price():
     """Read the cached gold price from a file."""
@@ -26,6 +37,7 @@ def get_cached_gold_price():
 
             # Check if the cached data is from today
             if cache_time.date() == datetime.now().date():
+                logger.debug("Using cached gold price.")
                 return cache_data['gold_price']
     return None
 
@@ -37,17 +49,18 @@ def cache_gold_price(price):
             'gold_price': price
         }
         json.dump(cache_data, f)
+    logger.debug("Gold price cached successfully.")
 
 def fetch_gold_price_from_api():
     """Fetch the gold price from GoldAPI.io."""
-    print("Gold API calls are currently disabled for testing.")
+    logger.debug("Gold API calls are currently disabled for testing.")
     return 6863.98  # Example static value for testing
 
 def get_gold_price_usd():
     """Get the gold price from the cache or use a static value for testing."""
     cached_price = get_cached_gold_price()
     if cached_price is not None:
-        print("Using cached gold price.")
+        logger.debug("Using cached gold price.")
         return cached_price
 
     gold_price = fetch_gold_price_from_api()
@@ -60,19 +73,18 @@ def format_date_for_mailchimp(date_str):
     if not date_str:
         return ''
     try:
-        # Parse the date from the YYYY-MM-DD format
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        # Convert to DD/MM/YYYY format (change to MM/DD/YYYY if needed)
-        formatted_date = date_obj.strftime('%d/%m/%Y')
+        formatted_date = date_obj.strftime('%m/%d/%Y')  # Format in MM/DD/YYYY
+        logger.debug(f"Formatted date {date_str} to {formatted_date}")
         return formatted_date
     except ValueError:
-        print(f"Invalid date format: {date_str}")
+        logger.error(f"Invalid date format: {date_str}")
         return ''
-
-def add_subscriber_to_mailchimp(email, zakat_dates):
-    """Add or update subscriber in Mailchimp list with Zakat dates."""
+async def add_subscriber_to_mailchimp(email, zakat_dates):
+    """Add or update subscriber in Mailchimp list with Zakat dates asynchronously."""
+    start_time = time.time()  # Start timing
     subscriber_hash = hashlib.md5(email.lower().encode()).hexdigest()
-    server_prefix = os.getenv('MAILCHIMP_SERVER_PREFIX')  # e.g., 'us1'
+    server_prefix = os.getenv('MAILCHIMP_SERVER_PREFIX', 'us1')
     list_id = os.getenv('MAILCHIMP_LIST_ID')
     url = f'https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}'
 
@@ -90,6 +102,9 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
         "MMERGE14": format_date_for_mailchimp(zakat_dates[9]) if len(zakat_dates) > 9 else '',
     }
 
+    # Log the merge fields before sending to the API
+    logger.debug(f"Prepared merge fields for Mailchimp: {merge_fields}")
+
     # Prepare data for Mailchimp API
     data = {
         "email_address": email,
@@ -101,17 +116,22 @@ def add_subscriber_to_mailchimp(email, zakat_dates):
 
     headers = {"Authorization": f"apikey {os.getenv('MAILCHIMP_API_KEY')}"}
 
-    # Send request to Mailchimp API
-    response = requests.put(url, json=data, headers=headers)
+    # Make the real API call
+    logger.info("Sending data to Mailchimp...")
+    async with aiohttp.ClientSession() as session:
+        async with session.put(url, json=data, headers=headers) as response:
+            end_time = time.time()  # End timing
+            duration = end_time - start_time
+            response_text = await response.text()
+            logger.info(f"Mailchimp API call duration: {duration:.2f} seconds")
+            logger.info(f"Response Status Code: {response.status}")
+            logger.info(f"Response Body: {response_text}")
 
-    # Debugging: Print response from Mailchimp
-    print(f"Response Status Code: {response.status_code}")
-    print(f"Response Body: {response.text}")
+            if response.status in [200, 204]:
+                logger.info("Subscriber added or updated successfully.")
+            else:
+                logger.error(f"Failed to add or update subscriber: {response_text}")
 
-    if response.status_code in [200, 204]:
-        print("Subscriber added or updated successfully.")
-    else:
-        print(f"Failed to add or update subscriber: {response.text}")
 
 def convert_gregorian_to_hijri(g_date):
     """Convert Gregorian date to Hijri date."""
@@ -122,7 +142,7 @@ def convert_hijri_to_gregorian(h_date):
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
 
 @app.route('/', methods=['GET', 'POST'])
-def index():
+async def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
     next_dates = None
 
@@ -144,8 +164,10 @@ def index():
             formatted_date = next_gregorian_date.strftime('%Y-%m-%d')  # Original format
             next_dates.append(formatted_date)
 
+        logger.info(f"Calculated Zakat payment dates: {next_dates}")
+
         # Add or update subscriber in Mailchimp
-        add_subscriber_to_mailchimp(email, next_dates)
+        await add_subscriber_to_mailchimp(email, next_dates)
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
 
@@ -154,7 +176,7 @@ def oauth_callback():
     """Handle the OAuth callback from Mailchimp."""
     auth_code = request.args.get('code')
     token_url = 'https://login.mailchimp.com/oauth2/token'
-    redirect_uri = 'https://zakat-reminder.fly.dev/oauth/callback'
+    redirect_uri = 'http://localhost:5000/oauth/callback' if IS_LOCAL else 'https://zakat-reminder.fly.dev/oauth/callback'
 
     data = {
         'grant_type': 'authorization_code',
@@ -171,10 +193,11 @@ def oauth_callback():
     if response.status_code == 200:
         token_info = response.json()
         access_token = token_info.get('access_token')
-        print('Access Token:', access_token)
+        logger.info('Access Token:', access_token)
         return "Successfully authenticated with Mailchimp!"
     else:
+        logger.error(f"Failed to authenticate: {response.text}")
         return f"Failed to authenticate: {response.text}"
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=IS_LOCAL)
