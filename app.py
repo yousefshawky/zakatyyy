@@ -9,6 +9,7 @@ import hashlib
 import aiohttp
 import asyncio
 import time
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -16,7 +17,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration for local testing
-IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'True'  # Set to 'False' when deploying to Fly.io
+IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'False'  # Set to 'False' when deploying to Fly.io
 
 CACHE_FILE = 'gold_price_cache.json'
 
@@ -50,10 +51,36 @@ def cache_gold_price(price):
         json.dump(cache_data, f)
     logger.debug("Gold price cached successfully.")
 
+
 def fetch_gold_price_from_api():
     """Fetch the gold price from GoldAPI.io."""
-    logger.debug("Gold API calls are currently disabled for testing.")
-    return 6863.98  # Example static value for testing
+    api_key = os.getenv('GOLD_API_KEY')  # Add your GoldAPI.io key in .env
+    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD
+
+    headers = {
+        "x-access-token": api_key,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            gold_price = data.get("price", None)
+            if gold_price:
+                logger.debug(f"Fetched gold price: {gold_price}")
+                return gold_price
+            else:
+                logger.error(f"Gold price not found in the API response: {data}")
+                return None
+        else:
+            logger.error(f"Failed to fetch gold price. Status code: {response.status_code}, Response: {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error while fetching gold price: {str(e)}")
+        return None
+
 
 def get_gold_price_usd():
     """Get the gold price from the cache or use a static value for testing."""
