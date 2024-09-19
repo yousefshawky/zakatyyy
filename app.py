@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request
 from datetime import datetime
 from hijri_converter import Gregorian, Hijri
 from dotenv import load_dotenv
@@ -17,7 +17,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration for local testing
-IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'False'  # Set to 'False' when deploying to Fly.io
+IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'True'
 
 CACHE_FILE = 'gold_price_cache.json'
 
@@ -51,11 +51,10 @@ def cache_gold_price(price):
         json.dump(cache_data, f)
     logger.debug("Gold price cached successfully.")
 
-
 def fetch_gold_price_from_api():
-    """Fetch the gold price from GoldAPI.io."""
+    """Fetch the price of 85 grams of gold from GoldAPI.io."""
     api_key = os.getenv('GOLD_API_KEY')  # Add your GoldAPI.io key in .env
-    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD
+    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD per ounce (31.1035 grams)
 
     headers = {
         "x-access-token": api_key,
@@ -67,10 +66,16 @@ def fetch_gold_price_from_api():
 
         if response.status_code == 200:
             data = response.json()
-            gold_price = data.get("price", None)
-            if gold_price:
-                logger.debug(f"Fetched gold price: {gold_price}")
-                return gold_price
+            gold_price_per_ounce = data.get("price", None)  # Price of 1 ounce (31.1035 grams) of gold in USD
+            if gold_price_per_ounce:
+                # Convert to price of 85 grams
+                grams_per_ounce = 31.1035
+                gold_price_for_85_grams = (85 / grams_per_ounce) * gold_price_per_ounce
+
+                logger.debug(f"Gold price per ounce: {gold_price_per_ounce}")
+                logger.debug(f"Gold price for 85 grams: {gold_price_for_85_grams}")
+
+                return round(gold_price_for_85_grams, 2)  # Returning the value rounded to 2 decimal places
             else:
                 logger.error(f"Gold price not found in the API response: {data}")
                 return None
@@ -83,16 +88,17 @@ def fetch_gold_price_from_api():
 
 
 def get_gold_price_usd():
-    """Get the gold price from the cache or use a static value for testing."""
+    """Get the gold price for 85 grams from the cache or API."""
     cached_price = get_cached_gold_price()
     if cached_price is not None:
         logger.debug("Using cached gold price.")
-        return cached_price
+        return cached_price * 85  # Multiply by 85 to get the price for 85 grams of gold
 
     gold_price = fetch_gold_price_from_api()
     if gold_price is not None:
         cache_gold_price(gold_price)
-    return gold_price
+        return gold_price * 85  # Return the price for 85 grams of gold
+    return None
 
 def format_date_for_mailchimp(date_str):
     """Convert date from YYYY-MM-DD to the format expected by Mailchimp."""
@@ -170,7 +176,9 @@ def convert_hijri_to_gregorian(h_date):
 
 @app.route('/', methods=['GET', 'POST'])
 async def index():
-    nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
+    # Fetch the current gold price in USD for 85 grams (Nisaab value)
+    nisaab_value = get_gold_price_usd()  # Ensure this value is correct and not multiplied by 85 twice.
+
     next_dates = None
 
     if request.method == 'POST':
@@ -181,7 +189,6 @@ async def index():
                 # Step 2: Calculate Zakat dates
                 threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
                 next_dates = calculate_zakat_dates(threshold_date)
-
                 logger.info(f"Calculated Zakat payment dates: {next_dates}")
             else:
                 logger.error("Threshold date is missing.")
@@ -194,23 +201,19 @@ async def index():
             if email and threshold_date_str:
                 threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
                 next_dates = calculate_zakat_dates(threshold_date)
-
                 logger.info(f"Calculated Zakat payment dates for Mailchimp: {next_dates}")
 
                 # Send email reminders to Mailchimp
                 await add_subscriber_to_mailchimp(email, next_dates)
-
-                # After handling the email subscription, redirect the user
-                return redirect("https://zakatyyy.myshopify.com/products/zakat-email-reminder")
             else:
                 logger.error("Email or threshold date is missing.")
 
+    # Pass nisaab_value and dates to the template
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
 
 
 def calculate_zakat_dates(threshold_date):
     """Helper function to calculate the next 10 years' Zakat payment dates."""
-    # Convert to Hijri
     hijri_date = convert_gregorian_to_hijri(threshold_date)
     next_dates = []
 
@@ -222,35 +225,6 @@ def calculate_zakat_dates(threshold_date):
         next_dates.append(formatted_date)
 
     return next_dates
-
-
-@app.route('/oauth/callback')
-def oauth_callback():
-    """Handle the OAuth callback from Mailchimp."""
-    auth_code = request.args.get('code')
-    token_url = 'https://login.mailchimp.com/oauth2/token'
-    redirect_uri = 'http://localhost:5000/oauth/callback' if IS_LOCAL else 'https://zakat-reminder.fly.dev/oauth/callback'
-
-    data = {
-        'grant_type': 'authorization_code',
-        'client_id': MAILCHIMP_CLIENT_ID,
-        'client_secret': MAILCHIMP_CLIENT_SECRET,
-        'redirect_uri': redirect_uri,
-        'code': auth_code
-    }
-
-    # Make the request to get the access token
-    response = requests.post(token_url, data=data)
-
-    # Check for a successful response
-    if response.status_code == 200:
-        token_info = response.json()
-        access_token = token_info.get('access_token')
-        logger.info('Access Token:', access_token)
-        return "Successfully authenticated with Mailchimp!"
-    else:
-        logger.error(f"Failed to authenticate: {response.text}")
-        return f"Failed to authenticate: {response.text}"
 
 if __name__ == '__main__':
     app.run(debug=IS_LOCAL)
