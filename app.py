@@ -53,9 +53,9 @@ def cache_gold_price(price):
 
 
 def fetch_gold_price_from_api():
-    """Fetch the gold price from GoldAPI.io."""
+    """Fetch the price of 85 grams of gold from GoldAPI.io."""
     api_key = os.getenv('GOLD_API_KEY')  # Add your GoldAPI.io key in .env
-    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD
+    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD per ounce (31.1035 grams)
 
     headers = {
         "x-access-token": api_key,
@@ -67,10 +67,16 @@ def fetch_gold_price_from_api():
 
         if response.status_code == 200:
             data = response.json()
-            gold_price = data.get("price", None)
-            if gold_price:
-                logger.debug(f"Fetched gold price: {gold_price}")
-                return gold_price
+            gold_price_per_ounce = data.get("price", None)  # Price of 1 ounce (31.1035 grams) of gold in USD
+            if gold_price_per_ounce:
+                # Convert to price of 85 grams
+                grams_per_ounce = 31.1035
+                gold_price_for_85_grams = (85 / grams_per_ounce) * gold_price_per_ounce
+
+                logger.debug(f"Gold price per ounce: {gold_price_per_ounce}")
+                logger.debug(f"Gold price for 85 grams: {gold_price_for_85_grams}")
+
+                return round(gold_price_for_85_grams, 2)  # Returning the value rounded to 2 decimal places
             else:
                 logger.error(f"Gold price not found in the API response: {data}")
                 return None
@@ -80,7 +86,6 @@ def fetch_gold_price_from_api():
     except Exception as e:
         logger.error(f"Error while fetching gold price: {str(e)}")
         return None
-
 
 def get_gold_price_usd():
     """Get the gold price from the cache or use a static value for testing."""
