@@ -53,9 +53,9 @@ def cache_gold_price(price):
 
 
 def fetch_gold_price_from_api():
-    """Fetch the price of 85 grams of gold from GoldAPI.io."""
+    """Fetch the gold price from GoldAPI.io."""
     api_key = os.getenv('GOLD_API_KEY')  # Add your GoldAPI.io key in .env
-    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD per ounce (31.1035 grams)
+    url = "https://www.goldapi.io/api/XAU/USD"  # Gold price in USD
 
     headers = {
         "x-access-token": api_key,
@@ -67,16 +67,10 @@ def fetch_gold_price_from_api():
 
         if response.status_code == 200:
             data = response.json()
-            gold_price_per_ounce = data.get("price", None)  # Price of 1 ounce (31.1035 grams) of gold in USD
-            if gold_price_per_ounce:
-                # Convert to price of 85 grams
-                grams_per_ounce = 31.1035
-                gold_price_for_85_grams = (85 / grams_per_ounce) * gold_price_per_ounce
-
-                logger.debug(f"Gold price per ounce: {gold_price_per_ounce}")
-                logger.debug(f"Gold price for 85 grams: {gold_price_for_85_grams}")
-
-                return round(gold_price_for_85_grams, 2)  # Returning the value rounded to 2 decimal places
+            gold_price = data.get("price", None)
+            if gold_price:
+                logger.debug(f"Fetched gold price: {gold_price}")
+                return gold_price
             else:
                 logger.error(f"Gold price not found in the API response: {data}")
                 return None
@@ -86,6 +80,7 @@ def fetch_gold_price_from_api():
     except Exception as e:
         logger.error(f"Error while fetching gold price: {str(e)}")
         return None
+
 
 def get_gold_price_usd():
     """Get the gold price from the cache or use a static value for testing."""
@@ -172,53 +167,62 @@ def convert_hijri_to_gregorian(h_date):
     """Convert Hijri date to Gregorian date."""
     return Hijri(h_date.year, h_date.month, h_date.day).to_gregorian()
 
+
 @app.route('/', methods=['GET', 'POST'])
 async def index():
     nisaab_value = get_gold_price_usd()  # Fetch the Nisaab value in USD
     next_dates = None
 
-    if request.method == 'POST' and 'calculate_dates' in request.form:
-        # Step 1: Calculate Zakat dates
-        threshold_date_str = request.form['threshold_date']
-        threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+    if request.method == 'POST':
+        # Step 1: Check which form was submitted (calculate dates or send reminders)
+        if 'calculate_dates' in request.form:
+            threshold_date_str = request.form.get('threshold_date')
+            if threshold_date_str:
+                # Step 2: Calculate Zakat dates
+                threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+                next_dates = calculate_zakat_dates(threshold_date)
 
-        # Convert to Hijri
-        hijri_date = convert_gregorian_to_hijri(threshold_date)
-        next_dates = []
+                logger.info(f"Calculated Zakat payment dates: {next_dates}")
+            else:
+                logger.error("Threshold date is missing.")
 
-        # Calculate next 10 years' payment dates in Hijri
-        for i in range(10):
-            next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
-            next_gregorian_date = next_hijri_date.to_gregorian()
-            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
-            next_dates.append(formatted_date)
+        elif 'send_reminders' in request.form:
+            # Step 3: Collect email and recalculate dates, then send to Mailchimp
+            email = request.form.get('email')
+            threshold_date_str = request.form.get('threshold_date')
 
-        logger.info(f"Calculated Zakat payment dates: {next_dates}")
+            if email and threshold_date_str:
+                threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+                next_dates = calculate_zakat_dates(threshold_date)
 
-    elif request.method == 'POST' and 'send_reminders' in request.form:
-        # Step 3: Collect email and recalculate dates, then send to Mailchimp
-        email = request.form['email']
-        threshold_date_str = request.form['threshold_date']
-        threshold_date = datetime.strptime(threshold_date_str, '%Y-%m-%d')
+                logger.info(f"Calculated Zakat payment dates for Mailchimp: {next_dates}")
 
-        # Convert to Hijri
-        hijri_date = convert_gregorian_to_hijri(threshold_date)
-        next_dates = []
+                # Send email reminders to Mailchimp
+                await add_subscriber_to_mailchimp(email, next_dates)
 
-        # Calculate next 10 years' payment dates in Hijri
-        for i in range(10):
-            next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
-            next_gregorian_date = next_hijri_date.to_gregorian()
-            formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
-            next_dates.append(formatted_date)
-
-        logger.info(f"Calculated Zakat payment dates for Mailchimp: {next_dates}")
-
-        # Send to Mailchimp
-        if email:
-            await add_subscriber_to_mailchimp(email, next_dates)
+                # After handling the email subscription, redirect the user
+                return redirect("https://zakatyyy.myshopify.com/products/zakat-email-reminder")
+            else:
+                logger.error("Email or threshold date is missing.")
 
     return render_template('index.html', nisaab_value=nisaab_value, dates=next_dates)
+
+
+def calculate_zakat_dates(threshold_date):
+    """Helper function to calculate the next 10 years' Zakat payment dates."""
+    # Convert to Hijri
+    hijri_date = convert_gregorian_to_hijri(threshold_date)
+    next_dates = []
+
+    # Calculate next 10 years' payment dates in Hijri and convert to Gregorian
+    for i in range(10):
+        next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
+        next_gregorian_date = next_hijri_date.to_gregorian()
+        formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
+        next_dates.append(formatted_date)
+
+    return next_dates
+
 
 @app.route('/oauth/callback')
 def oauth_callback():
