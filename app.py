@@ -17,7 +17,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration for local testing
-IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'True'
+IS_LOCAL = os.getenv('IS_LOCAL', 'True') == 'False'
 
 CACHE_FILE = 'gold_price_cache.json'
 
