@@ -214,18 +214,40 @@ async def index():
 
 
 def calculate_zakat_dates(threshold_date):
-    """Helper function to calculate the next 10 years' Zakat payment dates."""
+    """Helper function to calculate the next 10 years' Zakat payment dates, starting from the first future date."""
     hijri_date = convert_gregorian_to_hijri(threshold_date)
     next_dates = []
 
-    # Calculate next 10 years' payment dates in Hijri and convert to Gregorian
+    # Get today's date in both Gregorian and Hijri
+    today = datetime.now()
+    hijri_today = convert_gregorian_to_hijri(today)
+
+    # Start checking from the threshold Hijri year
+    year_counter = hijri_date.year
+
+    # Keep looping until we find the first future Hijri date (based on month/day comparison)
+    while True:
+        # Construct a potential future Zakat date based on the threshold month/day, and advancing the year
+        potential_hijri_date = Hijri(year_counter, hijri_date.month, hijri_date.day)
+        potential_gregorian_date = potential_hijri_date.to_gregorian()
+
+        # Check if the potential Zakat date is in the future (after today)
+        if potential_gregorian_date > today:
+            # We've found the first future Zakat date, so break the loop
+            break
+
+        # If not, move to the next Hijri year
+        year_counter += 1
+
+    # Add the first future Zakat date and then calculate the next 9 dates
     for i in range(10):
-        next_hijri_date = Hijri(hijri_date.year + i, hijri_date.month, hijri_date.day)
-        next_gregorian_date = next_hijri_date.to_gregorian()
-        formatted_date = next_gregorian_date.strftime('%Y-%m-%d')
+        future_hijri_date = Hijri(year_counter + i, hijri_date.month, hijri_date.day)
+        future_gregorian_date = future_hijri_date.to_gregorian()
+        formatted_date = future_gregorian_date.strftime('%Y-%m-%d')
         next_dates.append(formatted_date)
 
     return next_dates
+
 
 if __name__ == '__main__':
     app.run(debug=IS_LOCAL)
