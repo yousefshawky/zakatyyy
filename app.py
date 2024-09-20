@@ -92,13 +92,14 @@ def get_gold_price_usd():
     cached_price = get_cached_gold_price()
     if cached_price is not None:
         logger.debug("Using cached gold price.")
-        return cached_price * 85  # Multiply by 85 to get the price for 85 grams of gold
+        return cached_price  # Already the price for 85 grams of gold
 
     gold_price = fetch_gold_price_from_api()
     if gold_price is not None:
         cache_gold_price(gold_price)
-        return gold_price * 85  # Return the price for 85 grams of gold
+        return gold_price  # Already the price for 85 grams of gold
     return None
+
 
 def format_date_for_mailchimp(date_str):
     """Convert date from YYYY-MM-DD to the format expected by Mailchimp."""
