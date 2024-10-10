@@ -1,7 +1,7 @@
 Zakatyyy
 ========
 
-A Python-based web application that calculates Zakat, utilizing gold price data and providing a user-friendly interface for Muslims to calculate their yearly Zakat obligation, with the option of email reminders
+A Python-based web application that calculates Zakat dates, utilizing gold price data and providing a user-friendly interface for Muslims to calculate their yearly Zakat date obligation, with the option of email reminders
 
 Features
 --------
